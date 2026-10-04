@@ -1,0 +1,323 @@
+import { useEffect, useMemo, useState } from 'react';
+
+type Fixture = {
+  id: number;
+  league: string;
+  leagueId: number;
+  homeTeam: string;
+  awayTeam: string;
+  kickoff: string;
+  status: string;
+  homeGoals?: number;
+  awayGoals?: number;
+  odds: {
+    home: number;
+    draw: number;
+    away: number;
+  };
+  goalMarginLast10: number;
+  form: string;
+  confidence: number;
+  pick: string;
+};
+
+const emptyMetrics = { total: 0, homeWins: 0, draws: 0, awayWins: 0, highConfidence: 0 };
+
+function App() {
+  const [fixtures, setFixtures] = useState<Fixture[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadFixtures = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/fixtures');
+        if (!response.ok) {
+          throw new Error('Erro ao buscar jogos.');
+        }
+        const data = await response.json();
+        setFixtures(data.fixtures ?? []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro ao carregar jogos.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFixtures();
+  }, []);
+
+  const metrics = useMemo(() => {
+    if (!fixtures.length) return emptyMetrics;
+
+    return fixtures.reduce(
+      (acc, item) => {
+        acc.total += 1;
+        if (item.pick.includes('Casa')) acc.homeWins += 1;
+        if (item.pick.includes('Empate')) acc.draws += 1;
+        if (item.pick.includes('Fora')) acc.awayWins += 1;
+        if (item.confidence >= 75) acc.highConfidence += 1;
+        return acc;
+      },
+      { ...emptyMetrics },
+    );
+  }, [fixtures]);
+
+  const topPicks = useMemo(() => fixtures.slice(0, 3), [fixtures]);
+
+  if (loading) {
+    return <div className="loading-shell">Carregando jogos e palpites…</div>;
+  }
+
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="brand-wrap">
+          <div className="brand-mark">E</div>
+          <div>
+            <p className="brand-name">EVSCORE</p>
+            <span className="brand-subtitle">Forecast Intelligence</span>
+          </div>
+        </div>
+
+        <nav className="nav">
+          <a href="#overview">Resumo</a>
+          <a href="#fixtures">Jogos</a>
+          <a href="#picks">Palpites</a>
+        </nav>
+
+        <button className="primary-btn">Ver palpite do dia</button>
+      </header>
+
+      <main className="content">
+        <section className="hero" id="overview">
+          <div className="hero-copy">
+            <span className="eyebrow">Dados automáticos</span>
+            <h1>Todos os jogos e palpites seguros em um só lugar.</h1>
+            <p>
+              A plataforma reúne partidas das principais ligas do mundo, margens de gols dos
+              últimos 10 jogos e indica apostas com maior consistência com base em dados e
+              tendências recentes.
+            </p>
+
+            <div className="hero-actions">
+              <button className="primary-btn">Abrir painel</button>
+              <button className="secondary-btn">Ver calendário</button>
+            </div>
+
+            <div className="mini-stats">
+              <div className="mini-card green">
+                <span>Jogos ativos</span>
+                <strong>{metrics.total}</strong>
+              </div>
+              <div className="mini-card blue">
+                <span>Palpites fortes</span>
+                <strong>{metrics.highConfidence}</strong>
+              </div>
+              <div className="mini-card gold">
+                <span>Margem média</span>
+                <strong>+1.4</strong>
+              </div>
+              <div className="mini-card purple">
+                <span>Confiança</span>
+                <strong>81%</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="hero-panel">
+            <div className="panel-header">
+              <span className="status-live">• Atualizado agora</span>
+              <span className="panel-tag">Todos os mercados</span>
+            </div>
+
+            <div className="featured-match">
+              <div className="team-block">
+                <div className="crest crest-1">M</div>
+                <div>
+                  <small>Casa</small>
+                  <strong>{fixtures[0]?.homeTeam ?? 'Manchester City'}</strong>
+                </div>
+              </div>
+
+              <div className="score-block">
+                <strong>{fixtures[0]?.homeGoals ?? 2}</strong>
+                <span>:</span>
+                <strong>{fixtures[0]?.awayGoals ?? 1}</strong>
+              </div>
+
+              <div className="team-block right">
+                <div>
+                  <small>Fora</small>
+                  <strong>{fixtures[0]?.awayTeam ?? 'Liverpool'}</strong>
+                </div>
+                <div className="crest crest-2">L</div>
+              </div>
+            </div>
+
+            <div className="odds-grid">
+              <div>
+                <span>1</span>
+                <strong>{fixtures[0]?.odds.home ?? 1.9}</strong>
+              </div>
+              <div>
+                <span>X</span>
+                <strong>{fixtures[0]?.odds.draw ?? 3.4}</strong>
+              </div>
+              <div>
+                <span>2</span>
+                <strong>{fixtures[0]?.odds.away ?? 4.1}</strong>
+              </div>
+            </div>
+
+            <div className="trend-box">
+              <p>Palpite principal</p>
+              <strong>{fixtures[0]?.pick ?? 'Casa com mais de 1.5 gols'}</strong>
+            </div>
+          </div>
+        </section>
+
+        {error ? <div className="error-box">{error}</div> : null}
+
+        <section className="panel-section" id="fixtures">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">Jogos em destaque</span>
+              <h2>Partidas do dia e dos próximos 3 dias</h2>
+            </div>
+            <a href="#">Atualizar</a>
+          </div>
+
+          <div className="fixture-list">
+            {fixtures.map((fixture) => (
+              <article key={fixture.id} className="fixture-card">
+                <div className="fixture-topline">
+                  <span className="fixture-time">
+                    {new Date(fixture.kickoff).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: 'short',
+                    })}
+                  </span>
+                  <span className="status-pill ao-vivo">{fixture.status}</span>
+                </div>
+
+                <div className="fixture-league">{fixture.league}</div>
+
+                <div className="fixture-match">
+                  <div className="team-line">
+                    <strong>{fixture.homeTeam}</strong>
+                    <span>{fixture.homeGoals ?? '—'}</span>
+                  </div>
+                  <div className="team-line">
+                    <strong>{fixture.awayTeam}</strong>
+                    <span>{fixture.awayGoals ?? '—'}</span>
+                  </div>
+                </div>
+
+                <div className="odds-row">
+                  <div>
+                    <span>1</span>
+                    <strong>{fixture.odds.home}</strong>
+                  </div>
+                  <div>
+                    <span>X</span>
+                    <strong>{fixture.odds.draw}</strong>
+                  </div>
+                  <div>
+                    <span>2</span>
+                    <strong>{fixture.odds.away}</strong>
+                  </div>
+                </div>
+
+                <div className="fixture-details">
+                  <div>
+                    <span>Margem últimos 10</span>
+                    <strong>{fixture.goalMarginLast10 > 0 ? '+' : ''}{fixture.goalMarginLast10}</strong>
+                  </div>
+                  <div>
+                    <span>Formação</span>
+                    <strong>{fixture.form}</strong>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="insights-grid">
+          <div className="analysis-box large">
+            <div className="section-head">
+              <div>
+                <span className="eyebrow">Risco x retorno</span>
+                <h3>Indicadores de produtividade</h3>
+              </div>
+            </div>
+
+            <div className="chart-bars">
+              <div className="bar-group">
+                <span>Casa</span>
+                <div className="bar" style={{ height: '68%' }} />
+              </div>
+              <div className="bar-group">
+                <span>Emp.</span>
+                <div className="bar" style={{ height: '34%' }} />
+              </div>
+              <div className="bar-group">
+                <span>Fora</span>
+                <div className="bar" style={{ height: '49%' }} />
+              </div>
+              <div className="bar-group">
+                <span>Over</span>
+                <div className="bar" style={{ height: '79%' }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="analysis-box small">
+            <div className="section-head">
+              <div>
+                <span className="eyebrow">Filtros</span>
+                <h3>Modelagem</h3>
+              </div>
+            </div>
+
+            <ul className="checklist">
+              <li>Últimos 10 jogos por equipe</li>
+              <li>Margem de gols e espaços defensivos</li>
+              <li>Odds x expectativa real</li>
+              <li>Lista de ligas principais do mundo</li>
+            </ul>
+          </div>
+        </section>
+
+        <section className="picks-section" id="picks">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">Palpites seguros</span>
+              <h2>Seleção com maior consistência</h2>
+            </div>
+            <a href="#">Ver tudo</a>
+          </div>
+
+          <div className="picks-grid">
+            {topPicks.map((pick) => (
+              <article key={pick.id} className="pick-card">
+                <span className="pick-badge">Top pick</span>
+                <h3>{pick.pick}</h3>
+                <p>
+                  {pick.homeTeam} x {pick.awayTeam}
+                </p>
+                <div className="pick-footer">
+                  <strong>{pick.odds.home}</strong>
+                  <span>{pick.confidence}%</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+export default App;
